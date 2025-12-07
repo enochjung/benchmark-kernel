@@ -50,9 +50,9 @@ pub fn execute(
     let n_usize = n as usize;
     let k_usize = k as usize;
 
-    let mut A = vec![0.0; m_usize * k_usize];
-    let mut B = vec![0.0; k_usize * n_usize];
-    let mut C = vec![0.0; m_usize * n_usize];
+    let mut A = vec![1.1; m_usize * k_usize];
+    let mut B = vec![1.1; k_usize * n_usize];
+    let mut C = vec![1.1; m_usize * n_usize];
 
     unsafe {
         std::env::set_var("OMP_NUM_THREADS", dgemm_config.nthreads.to_string());

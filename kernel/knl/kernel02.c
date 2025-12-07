@@ -1,11 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// DGEMM implementation with loop order i-k-j
-// Signature matches the Rust loader: dgemm(...)
-// layout: 101 = RowMajor, 102 = ColMajor
-// transa/transb currently only supports 0 (no transpose)
-
 void dgemm(int layout, int transa, int transb, int m, int n, int k,
            double alpha, const double *a, int lda, const double *b, int ldb,
            double beta, double *c, int ldc) {
@@ -13,10 +8,7 @@ void dgemm(int layout, int transa, int transb, int m, int n, int k,
 
     if (transa != 0 || transb != 0) return;
 
-    if (layout == 101) { // RowMajor
-        // A: m x k, lda = k
-        // B: k x n, ldb = n
-        // C: m x n, ldc = n
+    if (layout == 101) {
         for (int i = 0; i < m; ++i) {
             const double *a_row = a + (size_t)i * (size_t)lda;
             double *c_row = c + (size_t)i * (size_t)ldc;
@@ -28,7 +20,7 @@ void dgemm(int layout, int transa, int transb, int m, int n, int k,
                 }
             }
         }
-    } else if (layout == 102) { // ColMajor
+    } else if (layout == 102) {
         for (int j = 0; j < n; ++j) {
             for (int p = 0; p < k; ++p) {
                 double bv = b[(size_t)j * (size_t)ldb + p];

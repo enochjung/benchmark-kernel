@@ -1,47 +1,22 @@
-LDFLAGS := -shared
-KERNEL_SRC_DIR := src
-KERNEL_LIB_DIR := lib
+CC := gcc
+LDFLAGS := -shared -O3 -fopenmp -lm -lnuma -Wall -Werror
 
-SRCS := $(wildcard $(KERNEL_SRC_DIR)/*.c)
-BASENAMES := $(patsubst $(KERNEL_SRC_DIR)/%.c,%,$(SRCS))
-TARGETS := $(patsubst %, $(KERNEL_LIB_DIR)/%$(KERNEL_SUFFIX).so,$(BASENAMES))
+HONY: knl skl tx2 clean
 
-# Check required variables only when building (not for clean)
-ifeq ($(MAKECMDGOALS),)
-ifeq ($(MAKECMDGOALS),all)
-ifndef CC
-$(error CC is not defined. Please specify CC when invoking make)
-endif
-ifndef CFLAGS
-$(error CFLAGS is not defined. Please specify CFLAGS when invoking make)
-endif
-ifndef KERNEL_SUFFIX
-$(error KERNEL_SUFFIX is not defined. Please specify KERNEL_SUFFIX when invoking make)
-endif
-endif
-endif
+knl:
+	@for file in knl/*.c; do \
+		$(CC) -O3 -march=knl -mtune=knl -fPIC $(LDFLAGS) -o $${file%.c}.so $$file; \
+	done
 
-ifeq ($(filter clean,$(MAKECMDGOALS)),)
-ifndef CC
-$(error CC is not defined. Please specify CC when invoking make)
-endif
-ifndef CFLAGS
-$(error CFLAGS is not defined. Please specify CFLAGS when invoking make)
-endif
-ifndef KERNEL_SUFFIX
-$(error KERNEL_SUFFIX is not defined. Please specify KERNEL_SUFFIX when invoking make)
-endif
-endif
+skl:
+	@for file in skl/*.c; do \
+		$(CC) -O3 -march=skylake-avx512 -mtune=skylake-avx512 -fPIC $(LDFLAGS) -o $${file%.c}.so $$file; \
+	done
 
-all: $(TARGETS)
-
-$(KERNEL_LIB_DIR):
-	mkdir -p $(KERNEL_LIB_DIR)
-
-$(KERNEL_LIB_DIR)/%$(KERNEL_SUFFIX).so: $(KERNEL_SRC_DIR)/%.c | $(KERNEL_LIB_DIR)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
+tx2:
+	@for file in tx2/*.c; do \
+		$(CC) -O3 -march=thunderx2t99 -mtune=thunderx2t99 -fPIC $(LDFLAGS) -o $${file%.c}.so $$file; \
+	done
 
 clean:
-	rm -f $(KERNEL_LIB_DIR)/*.so
-
-.PHONY: all clean
+	rm -f knl/*.so skl/*.so tx2/*.so
