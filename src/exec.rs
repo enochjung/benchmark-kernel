@@ -186,7 +186,9 @@ fn load_library(lib_dir: &str) -> Result<libloading::Library, ExecError> {
 
 fn load_dgemm<'lib>(lib: &'lib libloading::Library) -> Result<DgemmFunc<'lib>, ExecError> {
     unsafe {
-        let dgemm = lib.get(b"dgemm").map_err(|_| ExecError::DgemmNotFound)?;
+        let dgemm = lib
+            .get(b"cblas_dgemm")
+            .map_err(|_| ExecError::DgemmNotFound)?;
         Ok(dgemm)
     }
 }
