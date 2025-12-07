@@ -1,44 +1,31 @@
 #include <stdint.h>
-#include <stddef.h>
+
+#define CblasRowMajor 101
 
 void dgemm(int layout, int transa, int transb, int m, int n, int k,
-           double alpha, const double *a, int lda, const double *b, int ldb,
-           double beta, double *c, int ldc) {
-    if (m <= 0 || n <= 0 || k <= 0) return;
+           double alpha, const double* A, int lda, const double* B, int ldb,
+           double beta, double* C, int ldc) {
+    // assumption:
+    // - layout == CblasRowMajor
+    // - transa == 'N'
+    // - transb == 'N'
+    // - alpha == 1.0
+    // - beta == 1.0
 
-    if (transa != 0 || transb != 0) {
-        return;
-    }
+    for (int i = 0; i < m; ++i) {
+        const double* AA = A + i * lda;
+        double* CC = C + i * ldc;
 
-    if (layout == 101) {
-        for (int i = 0; i < m; ++i) {
-            for (int j = 0; j < n; ++j) {
-                double sum = 0.0;
-                const double *a_row = a + (size_t)i * (size_t)lda;
-                const double *b_col = b + (size_t)j;
-                for (int p = 0; p < k; ++p) {
-                    double av = a_row[p];
-                    double bv = b_col[(size_t)p * (size_t)ldb];
-                    sum += av * bv;
-                }
-                double *c_ij = c + (size_t)i * (size_t)ldc + j;
-                *c_ij = alpha * sum + beta * (*c_ij);
-            }
-        }
-    } else if (layout == 102) {
         for (int j = 0; j < n; ++j) {
-            for (int i = 0; i < m; ++i) {
-                double sum = 0.0;
-                for (int p = 0; p < k; ++p) {
-                    double av = a[(size_t)p * (size_t)lda + i];
-                    double bv = b[(size_t)j * (size_t)ldb + p];
-                    sum += av * bv;
-                }
-                double *c_ji = c + (size_t)j * (size_t)ldc + i;
-                *c_ji = alpha * sum + beta * (*c_ji);
+            const double* BB = B + j;
+            double* c = CC + j;
+
+            double sum = 0.0;
+            for (int p = 0; p < k; ++p) {
+                sum += AA[p] * BB[p * ldb];
             }
+
+            c[0] = sum + c[0];
         }
-    } else {
-        return;
     }
 }
