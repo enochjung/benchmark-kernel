@@ -7,8 +7,8 @@ void cblas_dgemm(int layout, int transa, int transb, int m, int n, int k,
                  int ldb, double beta, double* C, int ldc) {
     // assumption:
     // - layout == CblasRowMajor
-    // - transa == 'N'
-    // - transb == 'N'
+    // - transa == CblasNoTrans
+    // - transb == CblasNoTrans
     // - alpha == 1.0
     // - beta == 1.0
 

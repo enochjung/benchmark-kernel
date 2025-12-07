@@ -207,10 +207,20 @@ fn call_dgemm(
     m: u32,
     n: u32,
     k: u32,
-) -> Result<i32, ExecError> {
+) -> Result<(), ExecError> {
     let layout_code = match layout {
         MatrixLayout::RowMajor => 101,
         MatrixLayout::ColMajor => 102,
+    };
+
+    let transa_code = match transa {
+        true => 111,
+        false => 110,
+    };
+
+    let transb_code = match transb {
+        true => 111,
+        false => 110,
     };
 
     let (lda, ldb, ldc) = match layout {
@@ -221,8 +231,8 @@ fn call_dgemm(
     unsafe {
         dgemm(
             layout_code,
-            if transa { 1 } else { 0 },
-            if transb { 1 } else { 0 },
+            transa_code,
+            transb_code,
             m as i32,
             n as i32,
             k as i32,
@@ -237,7 +247,7 @@ fn call_dgemm(
         );
     }
 
-    Ok(0)
+    Ok(())
 }
 
 impl fmt::Display for ExecError {
