@@ -7,9 +7,9 @@ DGEMM benchmark tool that loads optimized kernel implementations from shared lib
 
 ```bash
 # Build for target architecture
-make knl      # Knights Landing - compiles all .c files in kernel/knl/ to .so
-make skl      # Skylake (AVX-512) - compiles all .c files in kernel/skl/ to .so
-make tx2      # ThunderX2 CN9980 - compiles all .c files in kernel/tx2/ to .so
+make knl      # Intel Xeon Phi 7250 (KNL)
+make skl      # Intel Xeon 6148 (Skylake)
+make tx2      # Marvell ThunderX2 CN9980
 
 # Run benchmark
 ./target/release/dgemm_test <kernel.so> [options..]
@@ -34,8 +34,3 @@ make tx2      # ThunderX2 CN9980 - compiles all .c files in kernel/tx2/ to .so
 --result-policy=min|avg|max
 --only-result     Output only result
 ```
-
-## Notes
-
-- Kernels are organized by architecture: `kernel/knl/`, `kernel/skl/`, `kernel/tx2/`
-- All `.c` files in the architecture directory are compiled directly to `.so` files in the same location
