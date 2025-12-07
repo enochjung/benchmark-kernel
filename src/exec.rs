@@ -214,13 +214,13 @@ fn call_dgemm(
     };
 
     let transa_code = match transa {
-        true => 111,
-        false => 110,
+        true => 112,
+        false => 111,
     };
 
     let transb_code = match transb {
-        true => 111,
-        false => 110,
+        true => 112,
+        false => 111,
     };
 
     let (lda, ldb, ldc) = match layout {
