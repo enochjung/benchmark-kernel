@@ -1,3 +1,6 @@
 target
 kernel/*/*.so
+kernel/*/*.c
+!kernel/*/kernel01.c
+!kernel/*/kernel02.c
 benchmark*
