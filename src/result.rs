@@ -66,16 +66,16 @@ fn print_only_result(
 fn get_statistics(result_policy: &crate::ResultPolicy, values: &[f64]) -> (f64, &'static str) {
     match result_policy {
         crate::ResultPolicy::Min => {
-            let min_val = values.iter().cloned().fold(f64::INFINITY, f64::min);
-            (min_val, "min")
+            let max_val = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            (max_val, "min")
         }
         crate::ResultPolicy::Avg => {
             let avg_val = values.iter().sum::<f64>() / values.len() as f64;
             (avg_val, "avg")
         }
         crate::ResultPolicy::Max => {
-            let max_val = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-            (max_val, "max")
+            let min_val = values.iter().cloned().fold(f64::INFINITY, f64::min);
+            (min_val, "max")
         }
     }
 }
