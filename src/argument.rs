@@ -1,24 +1,37 @@
-use crate::{DgemmConfig, MatrixLayout, ResultPolicy, TestConfig};
+use crate::{DgemmConfig, HpcgSpmvConfig, KernelConfig, MatrixLayout, Summary, TestConfig};
 use regex::Regex;
 
 use std::fmt;
 
 #[derive(Debug)]
 pub enum ArgumentError {
-    InvalidArgument,
+    InvalidArgument(String),
     NotEnoughArguments,
 }
 
-pub fn parse_arguments(args: &[String]) -> Result<(DgemmConfig, TestConfig), ArgumentError> {
+pub fn parse_arguments(args: &[String]) -> Result<(KernelConfig, TestConfig), ArgumentError> {
     if args.len() < 1 {
         return Err(ArgumentError::NotEnoughArguments);
     }
 
-    let lib_dir = String::from(args[0].as_str());
+    match args[0].as_ref() {
+        "dgemm" | "DGEMM" => parse_dgemm_arguments(&args[1..])
+            .map(|(dgemm_conf, test_conf)| (KernelConfig::Dgemm(dgemm_conf), test_conf)),
+        "spmv" | "SPMV" => parse_spmv_arguments(&args[1..])
+            .map(|(spmv_conf, test_conf)| (KernelConfig::HpcgSpmv(spmv_conf), test_conf)),
+        _ => Err(ArgumentError::InvalidArgument(args[0].to_string())),
+    }
+}
+
+pub fn parse_dgemm_arguments(args: &[String]) -> Result<(DgemmConfig, TestConfig), ArgumentError> {
+    if args.len() < 1 {
+        return Err(ArgumentError::NotEnoughArguments);
+    }
+
+    let lib_dir = String::from(&args[0]);
     let conf = parse_options(&args[1..])?;
 
     let dgemm_config = DgemmConfig {
-        lib_dir,
         nthreads: conf.nthreads.unwrap_or(1),
         layout: conf.layout.unwrap_or(MatrixLayout::RowMajor),
         transa: conf.transa.unwrap_or(false),
@@ -31,14 +44,41 @@ pub fn parse_arguments(args: &[String]) -> Result<(DgemmConfig, TestConfig), Arg
     };
 
     let test_config = TestConfig {
+        lib_dir,
         warmup: conf.warmup.unwrap_or(0),
         iter: conf.iter.unwrap_or(5),
         verify: conf.verify.unwrap_or(false),
-        result_policy: conf.result_policy.unwrap_or(ResultPolicy::Max),
-        only_result: conf.only_result.unwrap_or(false),
+        summary: conf.summary.unwrap_or(Summary::Max),
+        concise: conf.concise.unwrap_or(false),
     };
 
     Ok((dgemm_config, test_config))
+}
+
+pub fn parse_spmv_arguments(
+    args: &[String],
+) -> Result<(HpcgSpmvConfig, TestConfig), ArgumentError> {
+    if args.len() < 1 {
+        return Err(ArgumentError::NotEnoughArguments);
+    }
+
+    let lib_dir = String::from(&args[0]);
+    let conf = parse_options(&args[1..])?;
+
+    let spmv_config = HpcgSpmvConfig {
+        n: conf.n.unwrap_or(104),
+    };
+
+    let test_config = TestConfig {
+        lib_dir,
+        warmup: conf.warmup.unwrap_or(0),
+        iter: conf.iter.unwrap_or(5),
+        verify: conf.verify.unwrap_or(false),
+        summary: conf.summary.unwrap_or(Summary::Max),
+        concise: conf.concise.unwrap_or(false),
+    };
+
+    Ok((spmv_config, test_config))
 }
 
 struct OptionConfig {
@@ -54,8 +94,8 @@ struct OptionConfig {
     warmup: Option<u16>,
     iter: Option<u16>,
     verify: Option<bool>,
-    result_policy: Option<ResultPolicy>,
-    only_result: Option<bool>,
+    summary: Option<Summary>,
+    concise: Option<bool>,
 }
 
 struct OptionString {
@@ -77,8 +117,8 @@ fn parse_options(args: &[String]) -> Result<OptionConfig, ArgumentError> {
         warmup: None,
         iter: None,
         verify: None,
-        result_policy: None,
-        only_result: None,
+        summary: None,
+        concise: None,
     };
 
     for arg in args {
@@ -86,25 +126,29 @@ fn parse_options(args: &[String]) -> Result<OptionConfig, ArgumentError> {
 
         match name.as_str() {
             "nthreads" | "nt" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let nthreads =
-                    str::parse::<u8>(value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let nthreads = str::parse::<u8>(value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.nthreads {
                     None => {
                         conf.nthreads = Some(nthreads);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "layout" | "l" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
                 let layout = match value.as_str() {
                     "row" | "r" => Ok(MatrixLayout::RowMajor),
                     "col" | "c" => Ok(MatrixLayout::ColMajor),
-                    _ => Err(ArgumentError::InvalidArgument),
+                    _ => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }?;
 
                 match conf.layout {
@@ -112,16 +156,18 @@ fn parse_options(args: &[String]) -> Result<OptionConfig, ArgumentError> {
                         conf.layout = Some(layout);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "transa" | "ta" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
                 let transa = match value.as_str() {
                     "true" | "t" => Ok(true),
                     "false" | "f" => Ok(false),
-                    _ => Err(ArgumentError::InvalidArgument),
+                    _ => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }?;
 
                 match conf.transa {
@@ -129,15 +175,17 @@ fn parse_options(args: &[String]) -> Result<OptionConfig, ArgumentError> {
                         conf.transa = Some(transa);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
             "transb" | "tb" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
                 let transb = match value.as_str() {
                     "true" | "t" => Ok(true),
                     "false" | "f" => Ok(false),
-                    _ => Err(ArgumentError::InvalidArgument),
+                    _ => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }?;
 
                 match conf.transb {
@@ -145,100 +193,119 @@ fn parse_options(args: &[String]) -> Result<OptionConfig, ArgumentError> {
                         conf.transb = Some(transb);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "alpha" | "a" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let alpha =
-                    str::parse::<f64>(&value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let alpha = str::parse::<f64>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.alpha {
                     None => {
                         conf.alpha = Some(alpha);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "beta" | "b" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let beta = str::parse::<f64>(&value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let beta = str::parse::<f64>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.beta {
                     None => {
                         conf.beta = Some(beta);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "m" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let m = str::parse::<u32>(&value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let m = str::parse::<u32>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.m {
                     None => {
                         conf.m = Some(m);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "n" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let n = str::parse::<u32>(&value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let n = str::parse::<u32>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.n {
                     None => {
                         conf.n = Some(n);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "k" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let k = str::parse::<u32>(&value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let k = str::parse::<u32>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.k {
                     None => {
                         conf.k = Some(k);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "warmup" | "w" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let warmup =
-                    str::parse::<u16>(&value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let warmup = str::parse::<u16>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.warmup {
                     None => {
                         conf.iter = Some(warmup);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
             "iter" | "i" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let iter = str::parse::<u16>(&value).map_err(|_| ArgumentError::InvalidArgument)?;
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let iter = str::parse::<u16>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
 
                 match conf.iter {
                     None => {
                         conf.iter = Some(iter);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
@@ -246,7 +313,7 @@ fn parse_options(args: &[String]) -> Result<OptionConfig, ArgumentError> {
                 if value.is_none() {
                     Ok(())
                 } else {
-                    Err(ArgumentError::InvalidArgument)
+                    Err(ArgumentError::InvalidArgument(arg.to_string()))
                 }?;
 
                 match conf.verify {
@@ -254,45 +321,63 @@ fn parse_options(args: &[String]) -> Result<OptionConfig, ArgumentError> {
                         conf.verify = Some(true);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
-            "result-policy" => {
-                let value = value.as_ref().ok_or(ArgumentError::InvalidArgument)?;
-                let result_policy = match value.as_str() {
-                    "min" => Ok(ResultPolicy::Min),
-                    "avg" => Ok(ResultPolicy::Avg),
-                    "max" => Ok(ResultPolicy::Max),
-                    _ => Err(ArgumentError::InvalidArgument),
+            "summary" => {
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let summary = match value.as_str() {
+                    "min" => Ok(Summary::Min),
+                    "avg" => Ok(Summary::Avg),
+                    "max" => Ok(Summary::Max),
+                    _ => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }?;
 
-                match conf.result_policy {
+                match conf.summary {
                     None => {
-                        conf.result_policy = Some(result_policy);
+                        conf.summary = Some(summary);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
-            "only-result" => {
+            "concise" => {
                 if value.is_none() {
                     Ok(())
                 } else {
-                    Err(ArgumentError::InvalidArgument)
+                    Err(ArgumentError::InvalidArgument(arg.to_string()))
                 }?;
 
-                match conf.only_result {
+                match conf.concise {
                     None => {
-                        conf.only_result = Some(true);
+                        conf.concise = Some(true);
                         Ok(())
                     }
-                    Some(_) => Err(ArgumentError::InvalidArgument),
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
                 }
             }
 
-            _ => Err(ArgumentError::InvalidArgument),
+            "nrow" => {
+                let value = value
+                    .as_ref()
+                    .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
+                let m = str::parse::<u32>(&value)
+                    .map_err(|_| ArgumentError::InvalidArgument(arg.to_string()))?;
+
+                match conf.m {
+                    None => {
+                        conf.m = Some(m);
+                        Ok(())
+                    }
+                    Some(_) => Err(ArgumentError::InvalidArgument(arg.to_string())),
+                }
+            }
+
+            _ => Err(ArgumentError::InvalidArgument(arg.to_string())),
         }?;
     }
 
@@ -303,13 +388,19 @@ const REGEX_PATTERN: &'static str = r#"^--([a-z]+)(?:=([a-z0-9.]+))?$"#;
 
 fn parse_option(arg: &str) -> Result<OptionString, ArgumentError> {
     let regex_module = Regex::new(REGEX_PATTERN).unwrap();
-    let caps = regex_module.captures(arg).unwrap();
+    let caps = regex_module
+        .captures(arg)
+        .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?;
 
     if caps.get(1).is_none() || caps.get(3).is_some() {
-        return Err(ArgumentError::InvalidArgument);
+        return Err(ArgumentError::InvalidArgument(arg.to_string()));
     }
 
-    let name = String::from(caps.get(1).ok_or(ArgumentError::InvalidArgument)?.as_str());
+    let name = String::from(
+        caps.get(1)
+            .ok_or(ArgumentError::InvalidArgument(arg.to_string()))?
+            .as_str(),
+    );
     let value = caps.get(2).map(|x| String::from(x.as_str()));
 
     Ok(OptionString { name, value })
@@ -318,7 +409,7 @@ fn parse_option(arg: &str) -> Result<OptionString, ArgumentError> {
 impl fmt::Display for ArgumentError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidArgument => write!(f, "invalid argument"),
+            Self::InvalidArgument(arg) => write!(f, "invalid argument: {}", arg),
             Self::NotEnoughArguments => write!(f, "not enough argument"),
         }
     }

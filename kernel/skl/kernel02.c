@@ -2,9 +2,9 @@
 
 #define CblasRowMajor 101
 
-void cblas_dgemm(int layout, int transa, int transb, int m, int n, int k,
-                 double alpha, const double* A, int lda, const double* B,
-                 int ldb, double beta, double* C, int ldc) {
+void call_dgemm(int layout, int transa, int transb, int m, int n, int k,
+                double alpha, const double* A, int lda, const double* B,
+                int ldb, double beta, double* C, int ldc) {
     // assumption:
     // - layout == CblasRowMajor
     // - transa == CblasNoTrans
