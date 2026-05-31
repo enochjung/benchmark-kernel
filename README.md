@@ -1,4 +1,4 @@
-benchmark_kernel
+benchmark-kernel
 ===========
 
 Kernel benchmark tool that loads optimized kernel implementations from shared libraries.
@@ -6,7 +6,7 @@ Kernel benchmark tool that loads optimized kernel implementations from shared li
 ## Quick Start
 
 ```bash
-# Build benchmark_kernel
+# Build benchmark-kernel
 cargo build --release
 
 # Build kernel libraries for target architecture
